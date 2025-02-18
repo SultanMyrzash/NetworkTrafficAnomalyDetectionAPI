@@ -10,4 +10,7 @@ Providing alerts and insights to network administrators for threat mitigation.
 
 Ensuring scalability and ease of integration with existing network security tools.
 
+# Task: Implement Initial ML Model for Anomaly Detection
+
+
 Project by Sultan, Adilet, Tazhaddin, Nazaiym
