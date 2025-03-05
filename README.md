@@ -10,4 +10,12 @@ Providing alerts and insights to network administrators for threat mitigation.
 
 Ensuring scalability and ease of integration with existing network security tools.
 
-Project by Sultan, Adilet, Tazhaddin, Nazaiym
+Project by Sultan, Adilet, Tazhaddin, *
+
+
+
+while ($true) { Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/status/" ; Start-Sleep -Seconds 3 }
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/status/" -Method GET | ConvertTo-Json -Depth 10
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/packets/" -Method GET | ConvertTo-Json -Depth 10
