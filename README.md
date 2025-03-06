@@ -10,6 +10,7 @@ Providing alerts and insights to network administrators for threat mitigation.
 
 Ensuring scalability and ease of integration with existing network security tools.
 
+<<<<<<< HEAD
 Project by Sultan, Adilet, Tazhaddin, *
 
 
@@ -19,3 +20,9 @@ while ($true) { Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/status/" ; Sta
 Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/status/" -Method GET | ConvertTo-Json -Depth 10
 
 Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/packets/" -Method GET | ConvertTo-Json -Depth 10
+=======
+# Task: Implement Initial ML Model for Anomaly Detection
+
+
+Project by Sultan, Adilet, Tazhaddin, Nazaiym
+>>>>>>> Sultan

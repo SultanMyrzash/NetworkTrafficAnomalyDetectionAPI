@@ -20,5 +20,6 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),  # Include the API app's URLs
+    path('', include('api.urls')),  # Route the root URL to the API app
 ]
 
