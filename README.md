@@ -10,19 +10,54 @@ Providing alerts and insights to network administrators for threat mitigation.
 
 Ensuring scalability and ease of integration with existing network security tools.
 
-<<<<<<< HEAD
 Project by Sultan, Adilet, Tazhaddin, *
 
 
 
-while ($true) { Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/status/" ; Start-Sleep -Seconds 3 }
+# Get all captured packets
+curl http://localhost:8000/api/get-last-packets/
 
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/status/" -Method GET | ConvertTo-Json -Depth 10
+# Analyze traffic (POST with custom packets)
+curl -X POST http://localhost:8000/api/get-traffic-analysis/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "packets": [
+        {
+            "timestamp": "2024-03-11 12:34:56",
+            "src": "45.142.120.12",
+            "dst": "192.168.1.1",
+            "dst_port": 445,
+            "proto": "TCP",
+            "length": 1500,
+            "raw_data": "base64_encoded_data"
+        },
+        {
+            "timestamp": "2024-03-11 12:34:57",
+            "src": "45.142.120.12",
+            "dst": "192.168.1.1",
+            "dst_port": 3389,
+            "proto": "TCP",
+            "length": 1500,
+            "raw_data": "base64_encoded_data"
+        },
+        {
+            "timestamp": "2024-03-11 12:34:58",
+            "src": "45.142.120.12",
+            "dst": "192.168.1.1",
+            "dst_port": 22,
+            "proto": "TCP",
+            "length": 1500,
+            "raw_data": "base64_encoded_data"
+        }
+    ]
+}' 
 
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/packets/" -Method GET | ConvertTo-Json -Depth 10
-=======
-# Task: Implement Initial ML Model for Anomaly Detection
+# Analyze current traffic (GET)
+curl http://localhost:8000/api/get-traffic-analysis/
 
-
-Project by Sultan, Adilet, Tazhaddin, Nazaiym
->>>>>>> Sultan
+# Stream analysis (in browser JavaScript)
+const eventSource = new EventSource('/api/stream-traffic-status/');
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log(data);
+};

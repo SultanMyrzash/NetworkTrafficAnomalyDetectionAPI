@@ -57,7 +57,7 @@ ROOT_URLCONF = 'ntad.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'api/templates'],  # Add this line
+        'DIRS': [BASE_DIR / 'api/templates'],  # Added this line
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

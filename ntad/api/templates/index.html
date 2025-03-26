@@ -1,18 +1,32 @@
+<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Network Traffic Anomaly Detection</title>
+</head>
+<body>
+    <h1>Network Traffic Anomaly Detection</h1>
+
+    <form id="packetForm">
+        {% csrf_token %}  <!-- ✅ Fix CSRF issue by adding this -->
+        <label for="packetData">Packet Data:</label>
+        <input type="text" id="packetData" name="packetData" required>
+        <button type="submit">Analyze Packet</button>
+    </form>
+
+    <div id="result"></div>
+
     <script>
+        // ✅ Extract CSRF Token from Cookie
         function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== '') {
                 const cookies = document.cookie.split(';');
                 for (let i = 0; i < cookies.length; i++) {
                     const cookie = cookies[i].trim();
-                    // Does this cookie string begin with the name we want?
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    if (cookie.startsWith(name + '=')) {
                         cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
                         break;
                     }
@@ -21,27 +35,17 @@
             return cookieValue;
         }
         const csrftoken = getCookie('csrftoken');
-    </script>
-</head>
-<body>
-    <h1>Network Traffic Anomaly Detection</h1>
-    <form id="packetForm">
-        <label for="packetData">Packet Data:</label>
-        <input type="text" id="packetData" name="packetData" required>
-        <button type="submit">Analyze Packet</button>
-    </form>
-    <div id="result"></div>
 
-    <script>
+        // ✅ Form Submission Handler
         document.getElementById('packetForm').addEventListener('submit', function(event) {
             event.preventDefault();
             const packetData = document.getElementById('packetData').value;
 
-            fetch('/api/testpackets/', {
+            fetch('/api/get-traffic-analysis/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken,
+                    'X-CSRFToken': csrftoken,  // ✅ Include CSRF token in headers
                 },
                 body: JSON.stringify({ packet: packetData }),
             })
@@ -51,6 +55,7 @@
             })
             .catch(error => {
                 console.error('Error:', error);
+                document.getElementById('result').innerText = 'Error occurred. Check console for details.';
             });
         });
     </script>
