@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -71,6 +72,25 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'ntad.wsgi.application'
+
+# DDoS Detection Settings
+DDOS_DETECTION = {
+    'CSV_PATH': os.path.join(BASE_DIR, 'captured_network_data.csv'),
+    'MODEL_PATH': os.path.join(BASE_DIR, 'ddos_detection_model.keras'),
+    'SCALER_PATH': os.path.join(BASE_DIR, 'scaler.joblib'),
+    'ENCODERS_PATH': os.path.join(BASE_DIR, 'label_encoders.joblib'),
+    'RESULTS_PATH': os.path.join(BASE_DIR, 'detection_results'),
+}
+
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': (
+        'rest_framework.renderers.JSONRenderer',
+    ),
+    'DEFAULT_PARSER_CLASSES': (
+        'rest_framework.parsers.JSONParser',
+    ),
+    'TEST_REQUEST_DEFAULT_FORMAT': 'json'
+}
 
 
 # Database
