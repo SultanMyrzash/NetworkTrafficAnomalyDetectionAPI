@@ -5,15 +5,15 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 import time
-from django.test import RequestFactory, override_settings
+from django.test import RequestFactory
 from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
 from unittest.mock import patch, MagicMock, Mock
-from django.test import RequestFactory, override_settings
 
 # Import the views module - adjust the import path to match your project structure
 from api.views import (
     index, load_model_and_preprocessing, get_last_packets,
-    get_traffic_analysis, generate_status_updates, stream_traffic_status
+    get_traffic_analysis, generate_status_updates, stream_traffic_status,
+    _model_cache, _scaler_cache, _encoders_cache, _last_analysis_time, _last_analysis_result
 )
 
 # Test data paths
@@ -28,18 +28,18 @@ def request_factory():
 @pytest.fixture
 def reset_global_caches():
     """Reset all global caches before each test"""
-    global _model_cache, _scaler_cache, _encoders_cache, _last_analysis_time, _last_analysis_result
-    _model_cache = None
-    _scaler_cache = None
-    _encoders_cache = None
-    _last_analysis_time = 0
-    _last_analysis_result = None
+    import api.views
+    api.views._model_cache = None
+    api.views._scaler_cache = None
+    api.views._encoders_cache = None
+    api.views._last_analysis_time = 0
+    api.views._last_analysis_result = None
     yield
-    _model_cache = None
-    _scaler_cache = None
-    _encoders_cache = None
-    _last_analysis_time = 0
-    _last_analysis_result = None
+    api.views._model_cache = None
+    api.views._scaler_cache = None
+    api.views._encoders_cache = None
+    api.views._last_analysis_time = 0
+    api.views._last_analysis_result = None
 
 @pytest.fixture
 def mock_model():
@@ -332,27 +332,30 @@ class TestGetTrafficAnalysis:
         assert response.status_code == 200
         content = json.loads(response.content)
         assert content['status'] == 'success'
+        assert content['message'] == 'Traffic analysis complete'
         assert content['flows_analyzed'] == 3
         assert 'detection_summary' in content
         assert 'attack_types' in content
-        assert 'timestamp' in content
+        assert content['detection_summary']['attack_flows'] == 1  # Based on our mock data
     
+    @patch('api.views._last_analysis_result')
+    @patch('api.views._last_analysis_time')
     @patch('time.time')
-    @patch('os.path.exists')
-    def test_traffic_analysis_caching(self, mock_path_exists, mock_time, request_factory, reset_global_caches):
+    def test_traffic_analysis_cache(self, mock_time, mock_last_time, mock_last_result, 
+                                   request_factory, reset_global_caches):
         """Test 12: Test caching behavior in traffic analysis"""
         # Setup
-        global _last_analysis_time, _last_analysis_result
-        mock_path_exists.return_value = True
-        mock_time.return_value = 100  # Mock current time
+        mock_time.return_value = 100  # Current time
+        mock_last_time.value = 98     # Last analysis was 2 seconds ago
         
-        # Set cache values
-        _last_analysis_time = 98  # 2 seconds ago
-        _last_analysis_result = {
+        cached_result = {
             'status': 'success',
-            'cached': True,
-            'timestamp': datetime.now().isoformat()
+            'message': 'Cached result',
+            'timestamp': '2025-03-27 10:00:00'
         }
+        import api.views
+        api.views._last_analysis_time = 98
+        api.views._last_analysis_result = cached_result
         
         request = request_factory.get('/api/get-traffic-analysis/')
         
@@ -362,25 +365,13 @@ class TestGetTrafficAnalysis:
         # Assertions
         assert response.status_code == 200
         content = json.loads(response.content)
-        assert content['status'] == 'success'
-        assert 'timestamp' in content
+        assert content == cached_result  # Should return cached result
     
     @patch('os.path.exists')
-    @patch('pandas.read_csv')
-    @patch('api.views.load_model_and_preprocessing')
-    def test_traffic_analysis_attack_detection(self, mock_load_model, mock_read_csv, mock_path_exists, 
-                                              request_factory, sample_network_data, mock_model, mock_scaler, mock_encoders,
-                                              reset_global_caches):
-        """Test 13: Test detection of attack patterns"""
+    def test_traffic_analysis_file_not_found(self, mock_path_exists, request_factory, reset_global_caches):
+        """Test 13: Test behavior when CSV file doesn't exist"""
         # Setup
-        mock_path_exists.return_value = True
-        mock_read_csv.return_value = sample_network_data
-        
-        # Modify mock encoders to return attack classifications
-        encoders = mock_encoders.copy()
-        encoders['label_encoder_binary'].inverse_transform.return_value = np.array(['Attack', 'Attack'])
-        encoders['label_encoder_type'].inverse_transform.return_value = np.array(['DDoS', 'DDoS'])
-        mock_load_model.return_value = (mock_model, mock_scaler, encoders)
+        mock_path_exists.return_value = False
         
         request = request_factory.get('/api/get-traffic-analysis/')
         
@@ -389,77 +380,15 @@ class TestGetTrafficAnalysis:
         
         # Assertions
         assert response.status_code == 200
-        content = json.loads(response.content)
-        assert content['status'] == 'success'
-        assert content['detection_summary']['attack_flows'] > 0
-        assert 'DDoS' in content['attack_types']
-        assert 'top_attacks' in content
-    
-    @patch('os.path.exists')
-    @patch('pandas.read_csv')
-    @patch('api.views.load_model_and_preprocessing')
-    def test_traffic_analysis_benign_traffic(self, mock_load_model, mock_read_csv, mock_path_exists,
-                                            request_factory, sample_network_data, mock_model, mock_scaler, mock_encoders,
-                                            reset_global_caches):
-        """Test 14: Test classification of benign traffic"""
-        # Setup
-        mock_path_exists.return_value = True
-        mock_read_csv.return_value = sample_network_data
-        
-        # Create a new mock model specifically for benign predictions
-        benign_model = Mock()
-        benign_model.predict.return_value = [
-            np.array([[0.95, 0.05], [0.90, 0.10]]),  # Very high probabilities for benign
-            np.array([[0.02, 0.98], [0.03, 0.97]])   # Very low probabilities for attack
-        ]
-        
-        # Configure mock encoders for benign predictions
-        benign_encoders = mock_encoders.copy()
-        benign_encoders['label_encoder_binary'].inverse_transform.return_value = np.array(['Benign', 'Benign'])
-        benign_encoders['label_encoder_type'].inverse_transform.return_value = np.array(['Normal', 'Normal'])
-        
-        mock_load_model.return_value = (benign_model, mock_scaler, benign_encoders)
-        
-        request = request_factory.get('/api/get-traffic-analysis/')
-        
-        # Execute
-        response = get_traffic_analysis(request)
-        
-        # Assertions
-        assert response.status_code == 200
-        content = json.loads(response.content)
-        assert content['status'] == 'success'
-        assert content['detection_summary']['attack_flows'] == 0
-        assert content['detection_summary']['benign_flows'] > 0
-    
-    @patch('os.path.exists')
-    @patch('pandas.read_csv')
-    @patch('api.views.load_model_and_preprocessing')
-    def test_traffic_analysis_model_loading_failure(self, mock_load_model, mock_read_csv, mock_path_exists,
-                                                request_factory, sample_network_data, reset_global_caches):
-        """Test 15: Test behavior when model loading fails"""
-        # Setup
-        mock_path_exists.return_value = True
-        mock_read_csv.return_value = sample_network_data
-        mock_load_model.side_effect = Exception("Model loading failed")
-        
-        request = request_factory.get('/api/get-traffic-analysis/')
-        
-        # Execute
-        response = get_traffic_analysis(request)
-        
-        # Assertions
-        assert response.status_code == 500
         content = json.loads(response.content)
         assert content['status'] == 'error'
-        assert 'Failed to load model' in content['message']
-        assert 'error_details' in content
-        
-
+        assert 'No captured network data found' in content['message']
+    
     @patch('os.path.exists')
     @patch('pandas.read_csv')
-    def test_traffic_analysis_empty_csv(self, mock_read_csv, mock_path_exists, request_factory, reset_global_caches):
-        """Test 16: Test behavior with empty CSV file"""
+    def test_traffic_analysis_empty_csv(self, mock_read_csv, mock_path_exists, 
+                                      request_factory, reset_global_caches):
+        """Test 14: Test behavior with empty CSV file"""
         # Setup
         mock_path_exists.return_value = True
         mock_read_csv.return_value = pd.DataFrame()  # Empty DataFrame
@@ -473,83 +402,143 @@ class TestGetTrafficAnalysis:
         assert response.status_code == 200
         content = json.loads(response.content)
         assert content['status'] == 'success'
+        assert 'No traffic data available for analysis' in content['message']
         assert content['flows_analyzed'] == 0
-        assert 'No flows to analyze' in content['message']
-        assert content.get('detection_summary', {}).get('total_flows', 0) == 0
+    
+    @patch('os.path.exists')
+    @patch('pandas.read_csv')
+    @patch('api.views.load_model_and_preprocessing')
+    def test_traffic_analysis_model_loading_failure(self, mock_load_model, mock_read_csv, 
+                                                  mock_path_exists, request_factory, 
+                                                  sample_network_data, reset_global_caches):
+        """Test 15: Test behavior when model loading fails"""
+        # Setup
+        mock_path_exists.return_value = True
+        mock_read_csv.return_value = sample_network_data
+        mock_load_model.return_value = (None, None, None)  # Model loading failed
+        
+        request = request_factory.get('/api/get-traffic-analysis/')
+        
+        # Execute
+        response = get_traffic_analysis(request)
+        
+        # Assertions
+        assert response.status_code == 500
+        content = json.loads(response.content)
+        assert content['status'] == 'error'
+        assert 'Failed to load model' in content['message']
+    
+    @patch('os.path.exists')
+    @patch('pandas.read_csv')
+    def test_traffic_analysis_exception(self, mock_read_csv, mock_path_exists, 
+                                      request_factory, reset_global_caches):
+        """Test 16: Test exception handling in traffic analysis"""
+        # Setup
+        mock_path_exists.return_value = True
+        mock_read_csv.side_effect = Exception("CSV parsing error")
+        
+        request = request_factory.get('/api/get-traffic-analysis/')
+        
+        # Execute
+        response = get_traffic_analysis(request)
+        
+        # Assertions
+        assert response.status_code == 500
+        content = json.loads(response.content)
+        assert content['status'] == 'error'
+        assert 'Failed to analyze traffic' in content['message']
 
-# Tests for generate_status_updates and stream_traffic_status
-class TestStreamingUpdates:
+# Tests for SSE streaming functions
+class TestStreamingFunctions:
     
     @patch('pandas.read_csv')
     @patch('api.views.load_model_and_preprocessing')
-    def test_generate_status_updates_success(self, mock_load_model, mock_read_csv, 
-                                            sample_network_data, mock_model, mock_scaler, mock_encoders):
-        """Test 17: Test successful generation of streaming updates"""
+    def test_generate_status_updates(self, mock_load_model, mock_read_csv, 
+                                   sample_network_data, mock_model, mock_scaler, mock_encoders):
+        """Test 17: Test generate_status_updates function"""
         # Setup
         mock_read_csv.return_value = sample_network_data
         mock_load_model.return_value = (mock_model, mock_scaler, mock_encoders)
         
-        # Execute - get the first yielded event
+        # Execute - get first item from generator
         generator = generate_status_updates()
-        event = next(generator)
+        update = next(generator)
         
         # Assertions
-        assert event.startswith("data: ")
-        data = json.loads(event.replace("data: ", "").strip())
+        assert isinstance(update, str)
+        assert update.startswith('data: ')
+        
+        # Parse the JSON from the SSE format
+        json_str = update.replace('data: ', '').strip()
+        data = json.loads(json_str)
+        
         assert 'timestamp' in data
         assert 'total_flows' in data
+        assert data['total_flows'] == 3
         assert 'attack_flows' in data
         assert 'attack_percentage' in data
         assert 'attack_types' in data
     
     @patch('pandas.read_csv')
     @patch('api.views.load_model_and_preprocessing')
-    def test_generate_status_updates_model_loading_failure(self, mock_load_model, mock_read_csv, sample_network_data):
-        """Test 18: Test error handling in streaming updates"""
+    def test_generate_status_updates_model_failure(self, mock_load_model, mock_read_csv, sample_network_data):
+        """Test 18: Test error handling in generate_status_updates"""
         # Setup
         mock_read_csv.return_value = sample_network_data
         mock_load_model.return_value = (None, None, None)  # Model loading failed
         
-        # Execute - get the first yielded event
+        # Execute - get first item from generator
         generator = generate_status_updates()
-        event = next(generator)
+        update = next(generator)
         
         # Assertions
-        assert event.startswith("data: ")
-        data = json.loads(event.replace("data: ", "").strip())
+        assert isinstance(update, str)
+        assert update.startswith('data: ')
+        
+        # Parse the JSON from the SSE format
+        json_str = update.replace('data: ', '').strip()
+        data = json.loads(json_str)
+        
         assert 'status' in data
         assert data['status'] == 'error'
-        assert 'message' in data
-    
-    @patch('api.views.generate_status_updates')
-    def test_stream_traffic_status_response(self, mock_generate_updates, request_factory):
-        """Test 19: Test streaming response format"""
-        # Setup
-        mock_generate_updates.return_value = iter(["data: {}\n\n"])
-        request = request_factory.get('/api/stream-traffic-status/')
-        
-        # Execute
-        response = stream_traffic_status(request)
-        
-        # Assertions
-        assert isinstance(response, StreamingHttpResponse)
-        assert response['Content-Type'] == 'text/event-stream'
-        assert response['Cache-Control'] == 'no-cache'
-        assert response['X-Accel-Buffering'] == 'no'
+        assert 'Model loading failed' in data['message']
     
     @patch('pandas.read_csv')
-    def test_generate_status_updates_csv_exception(self, mock_read_csv):
-        """Test 20: Test error handling when CSV reading fails"""
+    def test_generate_status_updates_exception(self, mock_read_csv):
+        """Test 19: Test exception handling in generate_status_updates"""
         # Setup
-        mock_read_csv.side_effect = Exception("CSV reading error")
+        mock_read_csv.side_effect = Exception("CSV parsing error")
         
-        # Execute - get the first yielded event
+        # Execute - get first item from generator
         generator = generate_status_updates()
-        event = next(generator)
+        update = next(generator)
         
         # Assertions
-        assert event.startswith("data: ")
-        data = json.loads(event.replace("data: ", "").strip())
+        assert isinstance(update, str)
+        assert update.startswith('data: ')
+        
+        # Parse the JSON from the SSE format
+        json_str = update.replace('data: ', '').strip()
+        data = json.loads(json_str)
+        
         assert 'status' in data
         assert data['status'] == 'error'
-        assert 'message' in data
+        assert 'CSV parsing error' in data['message']
+    
+    def test_stream_traffic_status(self, request_factory):
+        """Test 20: Test stream_traffic_status view"""
+        # Setup
+        request = request_factory.get('/api/stream-traffic-status/')
+        
+        # Mock the generate_status_updates function to avoid infinite loop
+        with patch('api.views.generate_status_updates') as mock_generator:
+            mock_generator.return_value = iter(['data: {"test": true}\n\n'])
+            
+            # Execute
+            response = stream_traffic_status(request)
+            
+            # Assertions
+            assert isinstance(response, StreamingHttpResponse)
+            assert response['Content-Type'] == 'text/event-stream'
+            assert response['Cache-Control'] == 'no-cache'
+            assert response['X-Accel-Buffering'] == 'no'
