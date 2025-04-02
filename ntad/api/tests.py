@@ -92,12 +92,11 @@ def mock_ml_artifacts():
 @pytest.mark.django_db
 def test_index_view(client, mocker):
     """TC_IDX: Test main dashboard page renders correctly."""
-    # FIX 1: Mock render to return a valid HttpResponse
+    # Mock render to return a valid HttpResponse
     mock_render = mocker.patch('api.views.render', return_value=HttpResponse(status=200))
 
     # Use Django test client to make a request to the root URL
-    # Ensure your project's root urls.py includes api.urls at ''
-    # Example: path('', include('api.urls'))
+    # Project's urls.py includes urlpatterns = [path('', index, name='index')]
     response = client.get('/') # Assumes root URL maps to index view
 
     # Assert the view returned HTTP 200 OK
@@ -278,10 +277,9 @@ def test_analysis_caching(client, mocker, mock_df_normal, mock_ml_artifacts):
     assert mock_model.predict.call_count == 2 # Assert predict WAS called again
 
 
-def test_load_model_success_and_failure(mocker, reset_caches, mock_ml_artifacts):
+def test_load_model_success_and_failure(mocker, mock_ml_artifacts):
     """TC_LMP: Test model loading success (a) and graceful failure (b) scenarios."""
-    # Note: reset_caches fixture ran before this test started.
-
+    # reset_caches fixture rans before this test starts
     # --- Part a: Success ---
     print("\n--- Running Part A: Success ---") # Added print for clarity
     mock_model_success, mock_scaler_success, mock_encoders_success = mock_ml_artifacts
@@ -302,27 +300,14 @@ def test_load_model_success_and_failure(mocker, reset_caches, mock_ml_artifacts)
     mock_joblib_load_success.assert_any_call(views.SCALER_PATH)
     mock_joblib_load_success.assert_any_call(views.ENCODERS_PATH)
 
-    # Optional: Second call - should hit cache (mocks shouldn't be called again)
-    # result_model_a2, result_scaler_a2, result_encoders_a2 = views.load_model_and_preprocessing()
-    # assert result_model_a2 is mock_model_success # Check it returns cached object
-    # mock_tf_load_success.assert_called_once() # Count still 1
-    # assert mock_joblib_load_success.call_count == 2 # Count still 2
-
-
-    # --- State Reset for Part B ---
-    print("--- Resetting State for Part B ---")
     # Manually reset the global cache variables in views.py
     with views._cache_lock:
         views._model_cache = None
         views._scaler_cache = None
         views._encoders_cache = None
-        # Resetting time/result cache just in case, although not directly tested here
         views._last_analysis_time = 0
         views._last_analysis_result = None
-
-    # Stop mocks created by mocker in Part A
-    mocker.stopall()
-
+    mocker.stopall() # Stop mocks created by mocker in Part A
 
     # --- Part b: Failure ---
     print("--- Running Part B: Failure ---")
@@ -346,11 +331,8 @@ def test_generate_status_updates(mocker, mock_df_normal, mock_ml_artifacts):
     # Mock dependencies within the generator's loop
     mocker.patch('pandas.read_csv', return_value=mock_df_normal)
     mocker.patch('api.views.load_model_and_preprocessing', return_value=(mock_model, mock_scaler, mock_encoders))
-    # We no longer need to mock sleep for this specific test's purpose
-    # mock_sleep = mocker.patch('time.sleep')
 
     generator = views.generate_status_updates()
-
     try:
         # Get the first yielded value
         first_update_str = next(generator)
