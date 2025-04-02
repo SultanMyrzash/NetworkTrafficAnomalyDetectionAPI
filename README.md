@@ -23,7 +23,17 @@ PS C:\Users\SultanMyrzash\Desktop\NTAD API project\ntad\api> pytest -v tests.py
 # Get all captured packets
 curl http://localhost:8000/api/get-last-packets/
 
-# Analyze traffic (POST with custom packets)
+# Analyze current traffic (GET)
+curl http://localhost:8000/api/get-traffic-analysis/
+
+# Stream analysis (in browser JavaScript)
+const eventSource = new EventSource('/api/stream-traffic-status/');
+eventSource.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log(data);
+};
+
+<!-- # Analyze traffic (POST with custom packets)
 curl -X POST http://localhost:8000/api/get-traffic-analysis/ \
   -H "Content-Type: application/json" \
   -d '{
@@ -56,14 +66,4 @@ curl -X POST http://localhost:8000/api/get-traffic-analysis/ \
             "raw_data": "base64_encoded_data"
         }
     ]
-}' 
-
-# Analyze current traffic (GET)
-curl http://localhost:8000/api/get-traffic-analysis/
-
-# Stream analysis (in browser JavaScript)
-const eventSource = new EventSource('/api/stream-traffic-status/');
-eventSource.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log(data);
-};
+}'  -->
