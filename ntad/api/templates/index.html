@@ -1,57 +1,151 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Network Traffic Anomaly Detection</title>
-    <script>
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    // Does this cookie string begin with the name we want?
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
+    <title>DDoS Detection Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        const csrftoken = getCookie('csrftoken');
-    </script>
+        .status-normal {
+            color: green;
+        }
+        .status-warning {
+            color: orange;
+        }
+        .status-danger {
+            color: red;
+            font-weight: bold;
+        }
+        #latest-events {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
 </head>
 <body>
-    <h1>Network Traffic Anomaly Detection</h1>
-    <form id="packetForm">
-        <label for="packetData">Packet Data:</label>
-        <input type="text" id="packetData" name="packetData" required>
-        <button type="submit">Analyze Packet</button>
-    </form>
-    <div id="result"></div>
-
+    <div class="container mt-4">
+        <h1>DDoS Detection Dashboard</h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        Traffic Status over the last 5 minutes
+                    </div>
+                    <div class="card-body">
+                        <h5 class="card-title">Current Status: 
+                            <span id="traffic-status" class="status-normal">Normal</span>
+                        </h5>
+                        <p class="card-text">Total Flows: <span id="total-flows">0</span></p>
+                        <p class="card-text">Attack Flows: <span id="attack-flows">0</span></p>
+                        <p class="card-text">Attack Percentage: <span id="attack-percentage">0%</span></p>
+                        <p class="card-text">Last Updated: <span id="last-updated">-</span></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        Attack Distribution
+                    </div>
+                    <div class="card-body">
+                        <div id="attack-types"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        Latest Events
+                    </div>
+                    <div class="card-body">
+                        <div id="latest-events" class="list-group">
+                            <!-- Events will be added here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <script>
-        document.getElementById('packetForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const packetData = document.getElementById('packetData').value;
-
-            fetch('/api/testpackets/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken,
-                },
-                body: JSON.stringify({ packet: packetData }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('result').innerText = 'Analysis Result: ' + data.status;
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
+        // Function to update the UI with traffic status
+        function updateTrafficStatus(data) {
+            document.getElementById('total-flows').textContent = data.total_flows;
+            document.getElementById('attack-flows').textContent = data.attack_flows;
+            document.getElementById('attack-percentage').textContent = data.attack_percentage + '%';
+            document.getElementById('last-updated').textContent = data.timestamp;
+            
+            // Update status class based on attack percentage
+            const statusElement = document.getElementById('traffic-status');
+            if (data.attack_percentage > 50) {
+                statusElement.textContent = 'Under Attack';
+                statusElement.className = 'status-danger';
+            } else if (data.attack_percentage > 10) {
+                statusElement.textContent = 'Suspicious';
+                statusElement.className = 'status-warning';
+            } else {
+                statusElement.textContent = 'Normal';
+                statusElement.className = 'status-normal';
+            }
+            
+            // Update attack types
+            const attackTypesElement = document.getElementById('attack-types');
+            attackTypesElement.innerHTML = '';
+            
+            if (Object.keys(data.attack_types).length === 0) {
+                attackTypesElement.innerHTML = '<p>No attacks detected</p>';
+            } else {
+                let html = '<ul>';
+                for (const [type, count] of Object.entries(data.attack_types)) {
+                    html += `<li>${type}: ${count} flows</li>`;
+                }
+                html += '</ul>';
+                attackTypesElement.innerHTML = html;
+            }
+            
+            // Add event to latest events
+            const eventsElement = document.getElementById('latest-events');
+            const eventItem = document.createElement('div');
+            eventItem.className = 'list-group-item';
+            
+            let eventText = `[${data.timestamp}] `;
+            if (data.attack_flows > 0) {
+                eventText += `Detected ${data.attack_flows} attack flows (${data.attack_percentage}%)`;
+            } else {
+                eventText += 'No attacks detected';
+            }
+            
+            eventItem.textContent = eventText;
+            eventsElement.prepend(eventItem);
+            
+            // Limit number of events
+            while (eventsElement.children.length > 20) {
+                eventsElement.removeChild(eventsElement.lastChild);
+            }
+        }
+        
+        // Connect to SSE stream
+        document.addEventListener('DOMContentLoaded', function() {
+            const evtSource = new EventSource('/api/stream-traffic-status/');
+            
+            evtSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                updateTrafficStatus(data);
+            };
+            
+            evtSource.onerror = function() {
+                console.error('SSE connection error. Reconnecting...');
+            };
         });
     </script>
 </body>
