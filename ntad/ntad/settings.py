@@ -82,15 +82,15 @@ DDOS_DETECTION = {
     'RESULTS_PATH': os.path.join(BASE_DIR, 'detection_results'),
 }
 
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': (
-        'rest_framework.renderers.JSONRenderer',
-    ),
-    'DEFAULT_PARSER_CLASSES': (
-        'rest_framework.parsers.JSONParser',
-    ),
-    'TEST_REQUEST_DEFAULT_FORMAT': 'json'
-}
+# REST_FRAMEWORK = {
+#     'DEFAULT_RENDERER_CLASSES': (
+#         'rest_framework.renderers.JSONRenderer',
+#     ),
+#     'DEFAULT_PARSER_CLASSES': (
+#         'rest_framework.parsers.JSONParser',
+#     ),
+#     'TEST_REQUEST_DEFAULT_FORMAT': 'json'
+# }
 
 
 # Database

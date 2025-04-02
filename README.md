@@ -13,6 +13,12 @@ Ensuring scalability and ease of integration with existing network security tool
 Project by Sultan, Adilet, Tazhaddin, *
 
 
+PS C:\Users\SultanMyrzash\Desktop\NTAD API project> cd .\ntad
+PS C:\Users\SultanMyrzash\Desktop\NTAD API project\ntad> python .\manage.py runserver
+
+
+PS C:\Users\SultanMyrzash\Desktop\NTAD API project\ntad> cd .\api          
+PS C:\Users\SultanMyrzash\Desktop\NTAD API project\ntad\api> pytest -v tests.py
 
 # Get all captured packets
 curl http://localhost:8000/api/get-last-packets/
