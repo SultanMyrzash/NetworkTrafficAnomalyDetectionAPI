@@ -6688,3 +6688,11 @@
 2025-04-02 02:43:39,523 - INFO - Stopping capture. Final save...
 2025-04-02 02:43:40,540 - INFO - Saved 40 flow records to captured_network_data.csv
 2025-04-02 02:43:40,540 - INFO - Capture stopped.
+2025-04-16 23:23:54,674 - INFO - Starting network traffic capture on default interface
+2025-04-16 23:23:54,674 - INFO - Saving to captured_network_data.csv every 5 seconds
+2025-04-16 23:23:54,674 - INFO - Using a 300 second time window for analysis
+2025-04-16 23:23:54,674 - INFO - Press Ctrl+C to stop
+2025-04-16 23:23:59,714 - INFO - Saved 8 flow records to captured_network_data.csv
+2025-04-16 23:24:01,348 - INFO - Stopping capture. Final save...
+2025-04-16 23:24:02,353 - INFO - Saved 9 flow records to captured_network_data.csv
+2025-04-16 23:24:02,354 - INFO - Capture stopped.
