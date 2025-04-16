@@ -38,31 +38,43 @@ pipeline {
             }
         }
 
-        // 2. Run Tests (using Docker)
+        // Stage 2: Run Tests (using Docker)
         stage('Test') {
             steps {
                 script {
-                    echo 'Running tests inside a temporary container...'
-                    // Build an image using the Dockerfile in the checked-out code
-                    // We tag it temporarily so we can refer to it
-                    // Assuming Dockerfile is inside the 'ntad' subdirectory of your checkout
-                    def testImage = docker.build("${IMAGE_NAME}:test-${env.BUILD_NUMBER}", "-f ntad/Dockerfile ntad/")
+                    echo 'Building Docker image for testing...'
+                    // Build the image using the 'ntad' directory as context
+                    def testImageName = "${IMAGE_NAME}:test-${env.BUILD_NUMBER}"
+                    docker.build(testImageName, "-f ntad/Dockerfile ntad/")
 
+                    echo 'Running tests inside container...'
                     try {
-                        // Run pytest inside the container we just built
-                        testImage.inside {
-                            // Command to execute inside container. Adjust path if needed.
-                            sh 'pytest -v ntad/api/tests.py'
-                        }
+                        // Explicitly run the container and execute pytest
+                        // Mount the current workspace to a path INSIDE the container (e.g., /test_workspace)
+                        // The WORKDIR in the Dockerfile is /app, so pytest needs the relative path from there.
+                        // Make sure the container is removed afterwards (--rm)
+                        docker.image(testImageName).run("--rm -v ${pwd()}:/test_workspace -w /test_workspace", "pytest -v ntad/api/tests.py")
+
+                        // Alternative if pytest needs to run from /app WORKDIR:
+                        // docker.image(testImageName).run("--rm -v ${pwd()}:/test_workspace", "sh -c 'cd /app && pytest -v ntad/api/tests.py'")
+
                         echo 'Tests passed!'
                     } catch (err) {
                         // If tests fail, stop the pipeline
                         error("Tests failed, stopping pipeline. Error: ${err}")
+                    } finally {
+                        // Optional: Clean up the test image if desired, especially if tests pass
+                        // To clean up even on failure, move this outside the try/catch
+                         try {
+                             sh "docker rmi ${testImageName}"
+                         } catch (err) {
+                             echo "Warning: Failed to remove test image ${testImageName}. Maybe it wasn't built?"
+                         }
                     }
                 }
             }
         }
-
+        
         // 3. Build Production Image
         stage('Build Image') {
             steps {
