@@ -46,7 +46,7 @@ pipeline {
                     // Build an image using the Dockerfile in the checked-out code
                     // We tag it temporarily so we can refer to it
                     // Assuming Dockerfile is inside the 'ntad' subdirectory of your checkout
-                    def testImage = docker.build("${IMAGE_NAME}:test-${env.BUILD_NUMBER}", "-f ntad/Dockerfile .")
+                    def testImage = docker.build("${IMAGE_NAME}:test-${env.BUILD_NUMBER}", "-f ntad/Dockerfile ntad/")
 
                     try {
                         // Run pytest inside the container we just built
@@ -68,11 +68,8 @@ pipeline {
             steps {
                 script {
                     echo "Building production image: ${IMAGE_NAME}..."
-                    // Build using the Dockerfile, relative to workspace root
-                    // Assuming Dockerfile is inside the 'ntad' subdirectory of your checkout
-                    def customImage = docker.build("${IMAGE_NAME}", "-f ntad/Dockerfile .")
+                    def customImage = docker.build("${IMAGE_NAME}", "-f ntad/Dockerfile ntad/")
 
-                    // Tag the image with 'latest' and the unique Jenkins build number
                     customImage.tag("${IMAGE_NAME}:latest")
                     customImage.tag("${IMAGE_NAME}:${env.BUILD_NUMBER}")
                     echo "Image tagged as ${IMAGE_NAME}:latest and ${IMAGE_NAME}:${env.BUILD_NUMBER}"

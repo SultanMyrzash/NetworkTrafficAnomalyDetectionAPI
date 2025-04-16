@@ -1,0 +1,15 @@
+# .gitignore example additions
+__pycache__/
+*.pyc
+/venv/
+/.env
+db.sqlite3 # If using sqlite for dev
+/static/
+/media/
+
+# Ignore large data/model files
+captured_network_data.csv
+ddos_detection_model.keras
+scaler.joblib
+label_encoders.joblib
+detection_results/
