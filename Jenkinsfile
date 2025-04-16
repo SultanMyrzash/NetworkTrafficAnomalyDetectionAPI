@@ -74,16 +74,20 @@ pipeline {
                 }
             }
         }
-        
-        // 3. Build Production Image
+
+        // Stage 3: Build Production Image
         stage('Build Image') {
             steps {
                 script {
                     echo "Building production image: ${IMAGE_NAME}..."
+                    // Build using 'ntad' as context and specify Dockerfile path
+                    // This command implicitly tags the built image as sultanmyrzash/ntad-api:latest
                     def customImage = docker.build("${IMAGE_NAME}", "-f ntad/Dockerfile ntad/")
 
-                    customImage.tag("${IMAGE_NAME}:latest")
-                    customImage.tag("${IMAGE_NAME}:${env.BUILD_NUMBER}")
+                    // Add the build number as an additional tag to the same image ID
+                    echo "Adding tag: ${env.BUILD_NUMBER}"
+                    customImage.tag("${env.BUILD_NUMBER}") // Just provide the new tag
+
                     echo "Image tagged as ${IMAGE_NAME}:latest and ${IMAGE_NAME}:${env.BUILD_NUMBER}"
                 }
             }
