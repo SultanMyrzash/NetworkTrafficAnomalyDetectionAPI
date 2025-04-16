@@ -14,16 +14,21 @@ WORKDIR /app
 # RUN apt-get update && apt-get install -y --no-install-recommends some-package && rm -rf /var/lib/apt/lists/*
 
 # 5. Copy requirements.txt FROM the build context root (which is now 'ntad/')
-COPY requirements.txt . # This is now correct, as requirements.txt is at the root of the 'ntad' context
+COPY requirements.txt .
+ # This is now correct, as requirements.txt is at the root of the 'ntad' context
 
 # 6. Install Deps
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 7. Copy necessary files/dirs FROM the build context root ('ntad/')
-COPY manage.py .       # Copy manage.py from 'ntad/' context root
-COPY start.sh .        # Copy start.sh from 'ntad/' context root
-COPY ./ntad /app/ntad  # Copy the inner 'ntad' dir (with settings.py, wsgi.py)
-COPY ./api /app/api    # Copy the 'api' app directory
+COPY manage.py .
+       # Copy manage.py from 'ntad/' context root
+COPY start.sh .
+        # Copy start.sh from 'ntad/' context root
+COPY ./ntad /app/ntad
+  # Copy the inner 'ntad' dir (with settings.py, wsgi.py)
+COPY ./api /app/api
+    # Copy the 'api' app directory
 
 # 8. Make executable
 RUN chmod +x /app/start.sh
