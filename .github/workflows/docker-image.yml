@@ -24,6 +24,7 @@ jobs:
     - name: Build and push image to Docker Hub
       uses: docker/build-push-action@v5
       with:
-        context: .
+        context: ./ntad
+        file: ./ntad/Dockerfile
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/network-traffic-anomaly-api:latest
