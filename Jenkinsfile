@@ -33,41 +33,25 @@ pipeline {
             steps {
                 echo "Running Pytest via explicit docker run..."
                 script {
-                    // Attempt to translate Windows workspace path for Docker volume mount
-                    // NOTE: This path translation can be fragile. Docker Desktop often maps C:\ to /c/
-                    // Adjust if your drive letter or Docker path mapping is different.
-                    def windowsWorkspace = pwd().replace('\\', '/') // Get Jenkins workspace path, ensure forward slashes
-                    def volumeMountPath = windowsWorkspace.replaceFirst("(?i)C:", "/c") // Replace C: with /c (case-insensitive)
-
-                    // Define path inside container where workspace will be mounted
-                    def containerWorkspace = "/jenkins-ws"
-
-                    // Define test file path relative to the mount point inside container
+                    def windowsWorkspace = pwd().replace('\\', '/')
+                    def containerWorkspace = "/jenkins-ws" // Use a distinct path inside container
                     def containerTestPath = "${containerWorkspace}/ntad/api/tests.py"
+                    def containerWorkDir = "${containerWorkspace}/ntad" // WORKDIR is /app in Dockerfile, but workspace mounts elsewhere? Let's set WORKDIR explicitly here
 
-                    // Define working directory inside container (where commands will run)
-                    def containerWorkDir = "${containerWorkspace}" // Run from the root of the mounted workspace
-
-                     // Use bat step to execute docker run
+                    // FIX: Remove ':ro' from the volume mount for the test stage
                     bat """
                         docker run --rm ^
                             -u root ^
-                            -v "${windowsWorkspace}:${containerWorkspace}:ro" ^
+                            -v "${windowsWorkspace}:${containerWorkspace}" ^
                             -w "${containerWorkDir}" ^
                             --entrypoint pytest ^
                             "${IMAGE_NAME}:${IMAGE_TAG}" ^
-                            -v "${containerTestPath}"
+                            -v "api/tests.py"
                     """
-                    // Explanation of docker run flags:
-                    // --rm : Automatically remove the container when it exits.
-                    // -u root : Run commands as root user inside container (often needed for mounted volume permissions).
-                    // -v "${windowsWorkspace}:${containerWorkspace}:ro" : Mount Jenkins workspace read-only into container.
-                    //    Using the Windows path directly often works with Docker Desktop path mapping. Read-only is safer for tests.
-                    // -w "${containerWorkDir}" : Set the working directory inside the container.
-                    // --entrypoint pytest : Override the default CMD/ENTRYPOINT to run 'pytest'.
-                    // "${IMAGE_NAME}:${IMAGE_TAG}" : The image to run.
-                    // -v "${containerTestPath}" : Arguments passed to the pytest entrypoint (verbose flag and the path to tests *inside the container*).
-                    // Using caret (^) for line continuation in Windows batch script.
+                    // Explanation of changes:
+                    // -v "${windowsWorkspace}:${containerWorkspace}" : Removed ':ro'. Mount is now read-write.
+                    // -w "${containerWorkDir}" : Set WORKDIR to /jenkins-ws/ntad
+                    // Arguments to pytest: Just specify the path relative to the WORKDIR
                 }
             }
         }
