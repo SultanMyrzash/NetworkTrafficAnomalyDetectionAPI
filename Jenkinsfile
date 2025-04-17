@@ -5,7 +5,12 @@ pipeline {
     // 1. Build an image using the Dockerfile found in the root of your checkout.
     // 2. Run the steps of each stage *inside* containers derived from that built image.
     // This ensures your build and test environment is consistent and matches your Dockerfile.
-    agent { dockerfile true }
+    agent {
+        dockerfile {
+            dir 'ntad' // Specify the directory containing the Dockerfile
+            // filename 'Dockerfile' // Only needed if named differently
+        }
+    }
 
     // --- Environment Variables ---
     // Define values used later in the pipeline
@@ -150,24 +155,24 @@ pipeline {
 
     // --- Post Actions ---
     // Define actions that run at the end of the entire pipeline run
-    post {
-        // 'always' runs regardless of pipeline status (success, failure, etc.)
+        post {
         always {
             echo 'Pipeline finished.'
-            // Clean up the Jenkins workspace to save disk space
-            cleanWs()
+            // Explicitly allocate a node for workspace cleanup
+            node {
+                echo 'Cleaning workspace...'
+                cleanWs()
+            }
         }
-        // 'success' runs only if the entire pipeline was successful
         success {
+            // No node needed for just echo or simple notifications
             echo 'Pipeline completed successfully!'
-            // Add notifications here (e.g., Slack, Email) if desired
-            // mail to: 'your-email@example.com', subject: "Pipeline Success: ${currentBuild.fullDisplayName}"
+            // mail(...)
         }
-        // 'failure' runs only if the pipeline failed at any stage
         failure {
+            // No node needed for just echo or simple notifications
             echo 'Pipeline failed.'
-            // Add failure notifications here
-            // mail to: 'your-email@example.com', subject: "Pipeline FAILURE: ${currentBuild.fullDisplayName}"
+            // mail(...)
         }
     } // End of post
 } // End of pipeline
