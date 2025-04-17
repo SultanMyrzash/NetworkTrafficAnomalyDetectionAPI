@@ -158,9 +158,9 @@ pipeline {
     post {
         always {
              echo 'Pipeline finished.'
-             // Use node without a specific label - Jenkins might infer correctly
-             // or use the default built-in node if available.
-             node {
+             // <<< EDIT HERE >>>: Replace 'built-in' with a valid agent label from your Jenkins setup
+             // Common labels: 'built-in', 'master', or a custom label you created
+             node('built-in') {
                  echo 'Cleaning workspace...'
                  cleanWs()
              }
