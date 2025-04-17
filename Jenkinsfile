@@ -155,15 +155,16 @@ pipeline {
 
     // --- Post Actions ---
     // Define actions that run at the end of the entire pipeline run
-        post {
+    post {
         always {
-            echo 'Pipeline finished.'
-            // Explicitly allocate a node for workspace cleanup
-            node {
-                echo 'Cleaning workspace...'
-                cleanWs()
-            }
-        }
+             echo 'Pipeline finished.'
+             // Use node without a specific label - Jenkins might infer correctly
+             // or use the default built-in node if available.
+             node {
+                 echo 'Cleaning workspace...'
+                 cleanWs()
+             }
+         }
         success {
             // No node needed for just echo or simple notifications
             echo 'Pipeline completed successfully!'
