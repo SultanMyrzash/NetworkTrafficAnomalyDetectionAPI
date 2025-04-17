@@ -1,10 +1,14 @@
 // Use Declarative Pipeline syntax
 pipeline {
     // Agent selection: Use the 'dockerfile' agent.
-    // Specify the directory containing the Dockerfile
     agent {
         dockerfile {
-            dir 'ntad' // Correctly points to the subdirectory
+            // Specify the directory containing the Dockerfile relative to the workspace root
+            dir 'ntad' // Assumes Dockerfile is inside the 'ntad' subdirectory
+            // FIX: Explicitly set the working directory *inside* the container
+            // Use the WORKDIR defined in your Dockerfile (e.g., /app)
+            // This prevents Jenkins passing the Windows host path incorrectly.
+            args '-w /app'
         }
     }
 
@@ -32,22 +36,18 @@ pipeline {
             }
         }
 
-        // Stage 2: Build the Docker image
+        // Stage 2: Build and Tag the Docker image explicitly
+        // While the agent builds an image for running steps, we build explicitly
+        // here to ensure we have the correctly tagged image object for pushing later.
         stage('Build Docker Image') {
             steps {
-                echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG} and tagging latest"
                 script {
-                    // The 'agent { dockerfile ... }' handles the build implicitly,
-                    // but we can get the image object if needed later, e.g., for scanning.
-                    // For simplicity now, we let the agent handle the build needed for subsequent stages.
-                    // If you specifically need to tag 'latest' during the build *before* tests,
-                    // you might need a slightly different agent setup or build step.
-                    // Let's assume the agent builds what's needed for tests first.
-                    // We will explicitly build and tag again before push if needed.
+                    // Build the image using the Dockerfile in the 'ntad' subdirectory as context
+                    // '--pull' ensures the base image (python:3.12-slim) is updated if necessary
+                    def dockerImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "--pull ./ntad")
 
-                    // We rebuild here explicitly for tagging latest, though agent already built.
-                    // This ensures we use the correct context path ('ntad').
-                    def dockerImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "--pull ./ntad") // Build from 'ntad' subdir
+                    // Also tag the same built image as 'latest'
                     echo "Tagging image ${IMAGE_NAME}:${IMAGE_TAG} as ${IMAGE_NAME}:latest"
                     dockerImage.tag("${IMAGE_NAME}", "latest")
                 }
@@ -58,15 +58,15 @@ pipeline {
         stage('Run Tests') {
             steps {
                 echo "Running Pytest integration tests inside the container..."
-                // This sh step runs inside the container built by the agent { dockerfile } directive
-                // The workspace files are automatically mounted.
+                // This sh step runs inside the container built by the agent { dockerfile } directive.
+                // Jenkins automatically mounts the workspace and uses the specified working dir ('/app').
                 sh 'pytest -v api/tests.py' // Execute pytest command
             }
         }
 
         // Stage 4: Push the image (Conditionally)
         stage('Push to Docker Hub') {
-            // Only run for the 'main' branch
+            // Only run for the 'main' branch (adjust if needed)
             when { branch 'main' }
             steps {
                 echo "Pushing Docker image ${IMAGE_NAME} with tags :${IMAGE_TAG} and :latest to Docker Hub..."
@@ -82,17 +82,20 @@ pipeline {
             }
             post {
                 success { echo "Image successfully pushed to Docker Hub." }
+                // Use 'error' step to clearly mark the build as failed if push fails
                 failure { error "Failed to push image to Docker Hub." }
             }
         }
 
         // Stage 5: Deploy (Placeholder)
         stage('Deploy') {
+            // Only run for the 'main' branch after successful push
             when { branch 'main' }
             steps {
                 echo "Deploying application... (Placeholder - Requires Implementation)"
-                // Deployment logic depends heavily on your target server/cloud environment
-                // Requires handling volumes, potentially running multiple processes (supervisor/docker-compose)
+                // Deployment logic depends heavily on your target server/cloud environment.
+                // Remember to handle volumes for persistent data and a strategy for
+                // running both packet_capturing.py and the Django app (e.g., supervisor, docker-compose).
                 sh 'echo Deployment step needs implementation based on target infrastructure.'
                 // error('Deployment step not implemented') // Uncomment to fail here until implemented
             }
@@ -104,6 +107,7 @@ pipeline {
         always {
             echo 'Pipeline finished.'
             // Ensure cleanup runs on a node with workspace access
+            // Use a valid agent label from your Jenkins setup ('built-in' is common for the controller)
             // <<< EDIT HERE >>>: Replace 'built-in' if needed with your actual agent label
             node('built-in') {
                 echo 'Cleaning workspace...'
