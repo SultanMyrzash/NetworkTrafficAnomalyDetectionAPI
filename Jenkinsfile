@@ -1,132 +1,173 @@
-// Jenkinsfile (Updated - No Deployment Stage)
-
+// Use Declarative Pipeline syntax
 pipeline {
-    agent any // Tells Jenkins to run this on any available machine/agent
+    // Agent selection: Use the 'dockerfile' agent.
+    // This tells Jenkins to:
+    // 1. Build an image using the Dockerfile found in the root of your checkout.
+    // 2. Run the steps of each stage *inside* containers derived from that built image.
+    // This ensures your build and test environment is consistent and matches your Dockerfile.
+    agent { dockerfile true }
 
     // --- Environment Variables ---
-    // Define some values used later in the pipeline
+    // Define values used later in the pipeline
     environment {
         // <<< EDIT HERE >>>: Your Docker Hub Username (the one you login with)
         DOCKERHUB_USERNAME = 'sultanmyrzash'
         // <<< EDIT HERE >>>: Name of your Docker Hub Repository (e.g., ntad-api)
         DOCKERHUB_REPONAME = 'ntad-api'
-        // ID of the Docker Hub credential you created in Jenkins (Step 2)
-        DOCKERHUB_CREDENTIALS_ID = 'dockerhub-credentials'
-        // Full Image Name on Docker Hub
+        // ID of the Docker Hub credential you created in Jenkins (e.g., 'dockerhub-credentials')
+        DOCKERHUB_CREDENTIALS_ID = 'dockerhub-credentials' // Ensure this ID matches your Jenkins credential
+        // Construct the Full Image Name on Docker Hub
         IMAGE_NAME = "${DOCKERHUB_USERNAME}/${DOCKERHUB_REPONAME}"
-
-        // --- Deployment Settings Removed ---
-        // DEPLOY_SERVER = 'user@your_deployment_server_ip_or_hostname' // REMOVED
-        // DEPLOY_SSH_KEY_ID = 'deploy-server-ssh-key' // REMOVED
-        // APP_CONTAINER_NAME = 'ntad-api-container' // REMOVED (needed for manual deploy though)
-        // DEPLOY_VOLUME_MOUNT = '/path/on/server/data:/app/data' // REMOVED (needed for manual deploy though)
-        // DEPLOY_PORT_MAPPING = '80:8000' // REMOVED (needed for manual deploy though)
+        // Define a variable for the image tag using Jenkins' build number
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
 
     // --- Pipeline Stages ---
-    // Defines the sequence of steps
+    // Defines the sequence of steps executed by the pipeline
     stages {
-
-        // 1. Get Code from GitHub
-        stage('Checkout') {
+        // Stage 1: Get the code
+        stage('Checkout') { // Renamed from 'Clone' for consistency
             steps {
-                echo 'Getting latest code from GitHub...'
-                // Using your repository URL
-                git url: 'https://github.com/SultanMyrzash/NetworkTrafficAnomalyDetectionAPI.git', branch: 'main'
-                // Add credentialsId here if your repository becomes private later:
-                // credentialsId: 'your-github-credential-id'
+                echo "Checking out code from SCM (e.g., GitHub)..."
+                // This step automatically checks out the code from the source control
+                // configured in the Jenkins job (e.g., Git repository URL).
+                checkout scm
             }
         }
 
-        // Stage 2: Run Tests (using Docker)
-        stage('Test') {
+        // Stage 2: Build the Docker image
+        stage('Build Docker Image') { // Renamed from 'Build'
             steps {
+                echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
+                // Use the 'script' step for more complex Groovy logic if needed,
+                // like using the 'docker' global variable provided by the Docker Pipeline plugin.
                 script {
-                    echo 'Building Docker image for testing...'
-                    // Build the image using the 'ntad' directory as context
-                    def testImageName = "${IMAGE_NAME}:test-${env.BUILD_NUMBER}"
-                    docker.build(testImageName, "-f ntad/Dockerfile ntad/")
+                    // Build the image using the Dockerfile in the current directory (".")
+                    // Store the image object returned by docker.build()
+                    // --pull ensures the base image (e.g., python:3.12-slim) is updated if needed
+                    def dockerImage = docker.build("${IMAGE_NAME}:${IMAGE_TAG}", "--pull .")
 
-                    echo 'Running tests inside container...'
-                    try {
-                        // Explicitly run the container and execute pytest
-                        // Mount the current workspace to a path INSIDE the container (e.g., /test_workspace)
-                        // The WORKDIR in the Dockerfile is /app, so pytest needs the relative path from there.
-                        // Make sure the container is removed afterwards (--rm)
-                        docker.image(testImageName).run("--rm -v ${pwd()}:/test_workspace -w /test_workspace", "pytest -v ntad/api/tests.py")
-
-                        // Alternative if pytest needs to run from /app WORKDIR:
-                        // docker.image(testImageName).run("--rm -v ${pwd()}:/test_workspace", "sh -c 'cd /app && pytest -v ntad/api/tests.py'")
-
-                        echo 'Tests passed!'
-                    } catch (err) {
-                        // If tests fail, stop the pipeline
-                        error("Tests failed, stopping pipeline. Error: ${err}")
-                    } finally {
-                        // Optional: Clean up the test image if desired, especially if tests pass
-                        // To clean up even on failure, move this outside the try/catch
-                         try {
-                             sh "docker rmi ${testImageName}"
-                         } catch (err) {
-                             echo "Warning: Failed to remove test image ${testImageName}. Maybe it wasn't built?"
-                         }
-                    }
+                    // Also tag the same built image as 'latest' for convenience
+                    echo "Tagging image ${IMAGE_NAME}:${IMAGE_TAG} as ${IMAGE_NAME}:latest"
+                    dockerImage.tag("${IMAGE_NAME}", "latest")
                 }
             }
         }
 
-        // Stage 3: Build Production Image
-        stage('Build Image') {
+        // Stage 3: Run tests
+        stage('Run Tests') { // Renamed from 'Test'
             steps {
-                script {
-                    echo "Building production image: ${IMAGE_NAME}..."
-                    // Build using 'ntad' as context and specify Dockerfile path
-                    // This command implicitly tags the built image as sultanmyrzash/ntad-api:latest
-                    def customImage = docker.build("${IMAGE_NAME}", "-f ntad/Dockerfile ntad/")
-
-                    // Add the build number as an additional tag to the same image ID
-                    echo "Adding tag: ${env.BUILD_NUMBER}"
-                    customImage.tag("${env.BUILD_NUMBER}") // Just provide the new tag
-
-                    echo "Image tagged as ${IMAGE_NAME}:latest and ${IMAGE_NAME}:${env.BUILD_NUMBER}"
-                }
+                echo "Running Pytest integration tests inside the container..."
+                // Because we use 'agent { dockerfile true }', this 'sh' step runs
+                // inside a container based on the image built in the previous stage.
+                // This ensures tests run in the exact environment defined by the Dockerfile.
+                // Use '-s' with pytest to show print statements (like those in the merged test) if needed for debugging.
+                sh 'pytest -v api/tests.py' // Execute pytest command
             }
         }
 
-        // 4. Push Image to Docker Hub
-        stage('Push Image') {
+        // Stage 4: Push the image (Conditionally)
+        stage('Push to Docker Hub') { // Renamed from 'Push'
+            // Use a 'when' directive to only run this stage for specific conditions,
+            // typically only when building the 'main' or 'master' branch.
+            // <<< EDIT HERE >>>: Change 'main' if your primary branch has a different name.
+            when { branch 'main' }
             steps {
+                echo "Pushing Docker image ${IMAGE_NAME} with tags :${IMAGE_TAG} and :latest to Docker Hub..."
                 script {
-                    // Login to Docker Hub using the credential ID stored in Jenkins
+                    // Use the 'withRegistry' helper for secure login to Docker Hub
+                    // It uses the Jenkins credential specified by DOCKERHUB_CREDENTIALS_ID
                     docker.withRegistry('https://registry.hub.docker.com', DOCKERHUB_CREDENTIALS_ID) {
-                        // Push both tags
-                        echo "Pushing ${IMAGE_NAME}:latest..."
-                        docker.image(IMAGE_NAME).push('latest')
-                        echo "Pushing ${IMAGE_NAME}:${env.BUILD_NUMBER}..."
-                        docker.image(IMAGE_NAME).push("${env.BUILD_NUMBER}")
+                        // Push the image tagged with the specific build number
+                        docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push()
+
+                        // Push the image tagged as 'latest'
+                        docker.image("${IMAGE_NAME}:latest").push()
                     }
+                }
+            }
+            // Optional: Add post actions specifically for this stage
+            post {
+                success {
+                    echo "Image successfully pushed to Docker Hub."
+                }
+                failure {
+                    // Use 'error' to clearly mark the stage/build as failed if push fails
+                    error "Failed to push image to Docker Hub."
                 }
             }
         }
 
+        // Stage 5: Deploy (Placeholder)
+        stage('Deploy') {
+            // Only attempt deployment for the 'main' branch after a successful push
+             when { branch 'main' }
+            steps {
+                echo "Deploying application... (Placeholder - Requires Implementation)"
+                // Deployment logic is highly dependent on your target environment (server, cloud, Kubernetes, etc.)
+                // This usually involves:
+                // 1. Connecting to the target server (e.g., via SSH using SSH Agent plugin).
+                // 2. Pulling the latest Docker image (`docker pull ${IMAGE_NAME}:latest`).
+                // 3. Stopping and removing the old container.
+                // 4. Starting the new container using `docker run` or `docker-compose up -d`.
+                //    - **Crucially, you need to handle volumes here** to persist data like
+                //      `captured_network_data.csv` and `detection_results/` outside the container.
+                //    - **Also, you need a strategy to run BOTH `packet_capturing.py` AND the Django app (Gunicorn).**
+                //      Common solutions include using a process manager like 'supervisor' inside the container,
+                //      or deploying them as two separate containers managed by Docker Compose or Kubernetes.
 
+                // Example using SSH (requires SSH Agent plugin configured):
+                /*
+                sshagent(credentials: ['your-ssh-credential-id']) {
+                    sh '''
+                        ssh user@your-deployment-server << EOF
+                            echo "Pulling latest image..."
+                            docker pull ${IMAGE_NAME}:latest
+
+                            echo "Stopping and removing old container..."
+                            docker stop ntad-container || echo "Container not running."
+                            docker rm ntad-container || echo "Container not found."
+
+                            echo "Starting new container..."
+                            docker run -d --name ntad-container \\
+                                -p 80:8000 \\
+                                -v /path/on/server/to/data:/app/data \\ # Example volume mount
+                                ${IMAGE_NAME}:latest
+
+                            echo "Deployment script finished."
+                        EOF
+                    '''
+                }
+                */
+
+                // Since implementation varies greatly, we'll just echo and maybe fail until implemented.
+                sh 'echo Deployment step needs implementation based on target infrastructure.'
+                // Uncomment the line below to make the pipeline fail here until deployment is implemented
+                // error('Deployment step not implemented')
+            }
+        }
     } // End of stages
 
     // --- Post Actions ---
-    // These run after all stages complete, regardless of success/failure
+    // Define actions that run at the end of the entire pipeline run
     post {
+        // 'always' runs regardless of pipeline status (success, failure, etc.)
         always {
             echo 'Pipeline finished.'
-            // cleanWs() // Optional: Cleans up the Jenkins workspace
+            // Clean up the Jenkins workspace to save disk space
+            cleanWs()
         }
+        // 'success' runs only if the entire pipeline was successful
         success {
-            // This now means the image was successfully pushed to Docker Hub
-            echo 'Pipeline completed successfully! Image pushed to Docker Hub.'
-            // Add notifications here (e.g., email, Slack) if desired
+            echo 'Pipeline completed successfully!'
+            // Add notifications here (e.g., Slack, Email) if desired
+            // mail to: 'your-email@example.com', subject: "Pipeline Success: ${currentBuild.fullDisplayName}"
         }
+        // 'failure' runs only if the pipeline failed at any stage
         failure {
-            echo 'Pipeline failed!'
-            // Add notifications here
+            echo 'Pipeline failed.'
+            // Add failure notifications here
+            // mail to: 'your-email@example.com', subject: "Pipeline FAILURE: ${currentBuild.fullDisplayName}"
         }
-    }
+    } // End of post
 } // End of pipeline

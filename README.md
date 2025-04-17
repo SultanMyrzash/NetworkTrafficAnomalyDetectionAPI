@@ -33,6 +33,8 @@ eventSource.onmessage = (event) => {
     console.log(data);
 };
 
+net start jenkins
+
 <!-- # Analyze traffic (POST with custom packets)
 curl -X POST http://localhost:8000/api/get-traffic-analysis/ \
   -H "Content-Type: application/json" \

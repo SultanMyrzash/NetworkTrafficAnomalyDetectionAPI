@@ -1,41 +1,46 @@
-# ntad/Dockerfile (Modified COPY paths)
-
-# 1. Base Image
+# Use an official Python runtime as a parent image matching your project's version
 FROM python:3.12.3-slim
 
-# 2. Env Vars
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# 3. Working Dir
+# Install system dependencies required by Scapy (libpcap) and potentially other libraries
+# NOTE: Using apt-get assumes a Debian/Ubuntu-based image (like python:3.12-slim)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpcap-dev \
+    # Add any other system dependencies your project might need here
+    # Example: gcc build-essential if compiling C extensions is needed
+    && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory in the container
 WORKDIR /app
 
-# 4. System Deps (Keep if needed)
-# RUN apt-get update && apt-get install -y --no-install-recommends some-package && rm -rf /var/lib/apt/lists/*
-
-# 5. Copy requirements.txt FROM the build context root (which is now 'ntad/')
+# Upgrade pip and install dependencies
 COPY requirements.txt .
- # This is now correct, as requirements.txt is at the root of the 'ntad' context
-
-# 6. Install Deps
+RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 7. Copy necessary files/dirs FROM the build context root ('ntad/')
-COPY manage.py .
-       # Copy manage.py from 'ntad/' context root
-COPY start.sh .
-        # Copy start.sh from 'ntad/' context root
+# Copy the rest of the application code into the container
+# Copy the Django project directory first
 COPY ./ntad /app/ntad
-  # Copy the inner 'ntad' dir (with settings.py, wsgi.py)
-COPY ./api /app/api
-    # Copy the 'api' app directory
+# Copy manage.py, packet_capturing.py, start script
+COPY manage.py .
+COPY packet_capturing.py .
+COPY start.sh .
+# Copy ML models and preprocessing files needed at runtime
+# Adjust if these paths are different or managed via volumes later
+COPY ddos_detection_model.keras .
+COPY scaler.joblib .
+COPY label_encoders.joblib .
 
-# 8. Make executable
+# Make the start script executable
 RUN chmod +x /app/start.sh
 
-# 9. Expose Port
+# Expose the port the app runs on
 EXPOSE 8000
 
-# RUN sed -i 's/\r$//' $app/start.sh  && chmod +x $app/start.sh
-# 10. Start Command
+# Define the command to run the application using the start script
+# This script will initially ONLY run Django via Gunicorn.
+# Running packet_capturing.py requires a different approach (see notes).
 CMD ["/app/start.sh"]

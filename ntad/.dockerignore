@@ -1,0 +1,43 @@
+# Git files
+.git/
+.gitignore
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Python cache and virtual environment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.env
+
+# Test files and cache
+api/tests.py
+api/test_data/
+.pytest_cache/
+
+# Local development databases (if any)
+*.sqlite3
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+
+# Captured data and results (Mount these as volumes in deployment)
+captured_network_data.csv
+detection_results/
+
+# Sensitive files (if any)
+secrets.yaml
+*.key
+*.pem
