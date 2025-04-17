@@ -36,7 +36,6 @@ RUN chmod +x /app/start.sh
 # 9. Expose Port
 EXPOSE 8000
 
-RUN sed -i 's/\r$//' $app/start.sh  && \  
-chmod +x $app/start.sh
+# RUN sed -i 's/\r$//' $app/start.sh  && chmod +x $app/start.sh
 # 10. Start Command
 CMD ["/app/start.sh"]

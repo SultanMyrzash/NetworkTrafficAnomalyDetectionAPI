@@ -1,14 +1,22 @@
 #!/bin/bash
-# start.sh (Place in C:\Users\SultanMyrzash\Desktop\NTAD API project\ntad\)
+# Start packet capturing in background
+python packet_capturing.py -o data/captured_network_data.csv &
+CAPTURE_PID=$!
 
-# Exit immediately if a command exits with a non-zero status.
-set -e
+# Start Django server
+python manage.py runserver 0.0.0.0:8000 &
+DJANGO_PID=$!
 
-echo "Applying database migrations..."
-# Use the path inside the container where manage.py lives relative to wsgi.py
-python manage.py migrate --noinput
+# Handle shutdown
+shutdown() {
+    echo "Shutting down..."
+    kill $DJANGO_PID
+    kill $CAPTURE_PID
+    exit 0
+}
 
-echo "Starting Gunicorn..."
-# Adjust --workers based on server resources (e.g., 2 * CPU cores + 1)
-# ntad.wsgi:application points to the wsgi.py file inside the inner ntad directory
-gunicorn ntad.wsgi:application --bind 0.0.0.0:8000 --workers 4
+# Set up signal trapping
+trap shutdown SIGTERM SIGINT
+
+# Keep the container running
+wait
