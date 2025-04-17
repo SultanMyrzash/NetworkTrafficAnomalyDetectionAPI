@@ -45,7 +45,7 @@ pipeline {
                     echo 'Building Docker image for testing...'
                     // Build the image using the 'ntad' directory as context
                     def testImageName = "${IMAGE_NAME}:test-${env.BUILD_NUMBER}"
-                    docker.build(testImageName, "--no-cache -f ntad/Dockerfile ntad/")
+                    docker.build(testImageName, "-f ntad/Dockerfile ntad/")
 
                     echo 'Running tests inside container...'
                     try {
@@ -82,7 +82,7 @@ pipeline {
                     echo "Building production image: ${IMAGE_NAME}..."
                     // Build using 'ntad' as context and specify Dockerfile path
                     // This command implicitly tags the built image as sultanmyrzash/ntad-api:latest
-                    def customImage = docker.build("${IMAGE_NAME}", "--no-cache -f ntad/Dockerfile ntad/")
+                    def customImage = docker.build("${IMAGE_NAME}", "-f ntad/Dockerfile ntad/")
 
                     // Add the build number as an additional tag to the same image ID
                     echo "Adding tag: ${env.BUILD_NUMBER}"
@@ -109,8 +109,6 @@ pipeline {
             }
         }
 
-        // 5. Deploy Stage REMOVED
-        // stage('Deploy') { ... } // Entire stage deleted
 
     } // End of stages
 
