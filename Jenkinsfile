@@ -78,11 +78,7 @@ pipeline {
         // Stage 5: Deploy 
         stage('Deploy') {
             steps {
-                echo "Simulating Deployment..."
-                sh 'echo Pulling image: ${IMAGE_NAME}:latest'
-                sh 'echo topping old container (simulated)'
-                sh 'echo Starting new container (simulated)'
-                sh 'echo Deployment simulation complete.'
+                echo "Deployment simulation complete."
             }
         }
     } // End of stages
