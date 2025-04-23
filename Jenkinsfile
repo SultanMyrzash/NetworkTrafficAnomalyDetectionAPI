@@ -57,9 +57,18 @@ pipeline {
         }
         
 
-        // --- Stages Push and Deploy remain the same as before ---
+        stage('Check Branch Name') {
+            steps {
+                script {
+                    // Print the environment variable Jenkins provides
+                    echo "Jenkins believes the current branch is: ${env.BRANCH_NAME}"
+                }
+            }
+        }
+
         stage('Push to Docker Hub') {
-            when { branch 'main' }
+            // Compare against the variable Jenkins provides
+            when { expression { return env.BRANCH_NAME == 'main' } } // More explicit check
             steps {
                 echo "Pushing Docker image..."
                 script {
