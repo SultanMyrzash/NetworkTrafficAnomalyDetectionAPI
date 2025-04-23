@@ -85,7 +85,7 @@ pipeline {
                 sh 'echo Deployment simulation complete.'
             }
         }
-
+    } // End of stages
 
     // --- Post Actions remain the same ---
     post {
