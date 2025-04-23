@@ -57,20 +57,11 @@ pipeline {
         }
         
 
-        stage('Check Branch Name') {
-            steps {
-                script {
-                    // Print the environment variable Jenkins provides
-                    echo "Jenkins believes the current branch is: ${env.BRANCH_NAME}"
-                }
-            }
-        }
 
+        // Stage 4: Push the image to Docker Hub
         stage('Push to Docker Hub') {
-            // Compare against the variable Jenkins provides
-            when { expression { return env.BRANCH_NAME == 'main' } } // More explicit check
             steps {
-                echo "Pushing Docker image..."
+                echo "Pushing Docker image ${IMAGE_NAME} with tags :${IMAGE_TAG} and :latest to Docker Hub..."
                 script {
                     docker.withRegistry('https://registry.hub.docker.com', DOCKERHUB_CREDENTIALS_ID) {
                         docker.image("${IMAGE_NAME}:${IMAGE_TAG}").push()
@@ -84,15 +75,17 @@ pipeline {
             }
         }
 
+        // Stage 5: Deploy 
         stage('Deploy') {
-            when { branch 'main' }
             steps {
-                echo "Deploying application... (Placeholder)"
-                sh 'echo Deployment step needs implementation.'
-                // error('Deployment step not implemented')
+                echo "Simulating Deployment..."
+                sh 'echo Pulling image: ${IMAGE_NAME}:latest'
+                sh 'echo topping old container (simulated)'
+                sh 'echo Starting new container (simulated)'
+                sh 'echo Deployment simulation complete.'
             }
         }
-    } // End of stages
+
 
     // --- Post Actions remain the same ---
     post {
