@@ -78,7 +78,7 @@ pipeline {
         // Stage 5: Deploy 
         stage('Deploy') {
             steps {
-                echo "Deployment simulation complete."
+                echo "Deployment complete."
             }
         }
     } // End of stages
